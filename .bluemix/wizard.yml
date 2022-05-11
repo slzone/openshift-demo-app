@@ -1,0 +1,47 @@
+---
+version: '1'
+messages:
+  $i18n: locales.yml
+welcome:
+  description: 
+      $ref: "#/messages/wizard.welcome.description"
+    
+steps:
+
+  - name: appRepo
+    title:
+      $ref: "#/messages/wizard.step.appRepo.title"
+    form: wizard_appRepo
+    advanced_form: appRepo
+    conditions:
+      $ref: conditions.yml#/appRepo_conditions
+
+  - name: clusterInfo
+    title:
+      $ref: "#/messages/wizard.step.cluster.title"
+    form: wizard_cluster
+
+  - name: summary
+    title:
+      $ref: "#/messages/wizard.step.summary.title"
+    form: wizard_summary
+
+form:
+
+  wizard_appRepo:
+    schema:
+      $ref: wizard_01_appRepo.json
+
+  wizard_cluster:
+    parameters:
+      api-key:
+      prod-region:
+      prod-resource-group:
+      prod-cluster-name:
+      prod-cluster-namespace:
+    schema:
+      $ref: wizard_02_cluster.json
+
+  wizard_summary:
+    schema:
+      $ref: wizard_07_summary.json

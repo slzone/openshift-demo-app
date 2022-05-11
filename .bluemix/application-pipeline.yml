@@ -1,0 +1,46 @@
+---
+inputs:
+  - type: git
+    branch: ${PIPELINE_REPO_BRANCH}
+    service: ${PIPELINE_REPO}
+    path: .tekton
+
+triggers:
+  - type: git
+    name: github-commit
+    eventListener: eventlistener-git-trigger-github-commit
+    service: ${PIPELINE_REPO}
+    branch: ${PIPELINE_REPO_BRANCH}
+    events: { "push": false }
+
+  - type: manual
+    name: Manual-Trigger
+    eventListener: eventlistener-git-trigger-manual
+    properties:
+      - type: text
+        name: branch
+        value: ${PIPELINE_REPO_BRANCH}
+    is_public_worker: true
+
+  - type: generic
+    secret:
+      value: ""
+      type: tokenMatches
+      source: header
+      keyName: webhookToken
+    name: webhook
+
+properties:
+  - name: repositoryForManualTrigger
+    value: ${PIPELINE_REPO}
+    type: integration
+    path: parameters.repo_url
+  - type: secure
+    name: apikey
+    value: ${API_KEY}
+  - type: text
+    name: cluster-name
+    value: ${CLUSTER_NAME}
+  - type: text
+    name: cluster-namespace
+    value: ${CLUSTER_NAMESPACE}

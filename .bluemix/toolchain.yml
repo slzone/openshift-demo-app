@@ -1,0 +1,73 @@
+---
+version: "3"
+messages:
+  $i18n: locales.yml
+template:
+  name:
+    $ref: "#/messages/template.name"
+  description:
+    $ref: "#/messages/template.description"
+  header: "![](images/toolchain.svg?localize)"
+  icon: ./images/vpc.svg
+  required:
+    - draservicebroker
+    - appRepo
+    - application-pipeline
+  info:
+    git url: >
+      "[" + $env.repository + "]" +
+        "(" + $env.repository + ")"
+    git branch: >
+      "[" + $env.branch + "]" +
+        "(" + $env.repository +
+          "/tree/" + $env.branch + ")"
+    hosted_region: ""
+  wizard:
+    $ref: wizard.yml
+toolchain:
+  name: "openshift-demo-app-toolchain-{{timestamp}}"
+  template:
+    getting_started:
+      $ref: "#/messages/template.gettingStarted"
+
+services:
+  devops-insights:
+    service_id: 'draservicebroker' 
+
+  appRepo:
+    service_id: >
+      if ( $env.ENABLE_SETUP_WIZARD === 'true' ) {
+        'hostedgit';
+      } else {
+        $env.source_provider ? $env.source_provider : 'hostedgit';
+      }
+    parameters:
+      repo_name: "openshift-demo-app-{{timestamp}}"
+      repo_url: "https://github.com/slzone/openshift-demo-app"
+      source_repo_url: "https://github.com/slzone/openshift-demo-app"
+      type: $env.type || 'clone'
+      has_issues: true
+      enable_traceability: true
+      legal: true
+      source_provider: 'hostedgit'
+  
+  application-pipeline:
+    service_id: pipeline
+    parameters:
+      name: application-pipeline
+      label: application-pipeline
+      type: tekton
+      ui_pipeline: true
+      services:
+        - appRepo
+      configuration:
+        content:
+          $text: application-pipeline.yml
+        env:
+          PIPELINE_REPO: appRepo
+          PIPELINE_REPO_BRANCH: 'main'
+          API_KEY: "{{form.wizard_cluster.parameters.api-key}}"
+          CLUSTER_NAME: "{{form.wizard_cluster.parameters.prod-cluster-name}}"
+          CLUSTER_NAMESPACE: "{{form.wizard_cluster.parameters.prod-cluster-namespace}}"
+          
+

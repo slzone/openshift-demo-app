@@ -1,0 +1,73 @@
+---
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  labels:
+    application: sample-webapp
+  name: sample-webapp
+---
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: sample-webapp-bc
+spec:
+  triggers:
+    - type: ConfigChange
+  source:
+    dockerfile: |
+      FROM private.icr.io/ibm/alpine
+      CMD while true; do nc -l -p 8080 -e sh -c 'echo -e "HTTP/1.1 200 OK\n\n$(date)"'; done
+  strategy:
+    dockerStrategy:
+      pullSecret:
+        name: all-icr-io
+    type: Docker
+  output:
+    to:
+      kind: ImageStreamTag
+      name: sample-webapp:latest
+---
+kind: DeploymentConfig
+apiVersion: apps.openshift.io/v1
+metadata:
+  name: sample-webapp
+spec:
+  template:
+    metadata:
+      labels:
+        name: sample-webapp
+    spec:
+      containers:
+        - name: sample-webapp
+          image: openshift/sample-app
+          ports:
+          - containerPort: 8080
+            protocol: TCP
+  replicas: 1
+  triggers:
+    - type: ConfigChange
+    - type: ImageChange
+      imageChangeParams:
+        automatic: true
+        containerNames:
+          - sample-webapp
+        from:
+          kind: ImageStreamTag
+          name: sample-webapp:latest
+  strategy:
+    type: Rolling
+  paused: false
+  revisionHistoryLimit: 2
+  minReadySeconds: 0
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sample-webapp
+spec:
+  selector:
+    name: sample-webapp
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080

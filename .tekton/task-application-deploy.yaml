@@ -1,0 +1,90 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: application-deploy-task
+spec:
+  params:
+    - name: pipeline-debug
+      description: toggles debug mode for the pipeline
+      default: "false"
+    - name: ibmcloud-apikey-secret-key
+      description: field in the secret that contains the api key used to login to ibmcloud
+      default: apikey
+    - name: continuous-delivery-context-secret
+      description: Reference name for the secret resource
+      default: "secure-properties"
+    - name: cluster-name
+      default: ""
+      description: Cluster name
+    - name: cluster-namespace
+      default: ""
+      description: Cluster namespace to install the application
+  stepTemplate:
+    env:
+      - name: PIPELINE_DEBUG
+        value: $(params.pipeline-debug)
+      - name: IBMCLOUD_API_KEY
+        valueFrom:
+          secretKeyRef:
+            name: $(params.continuous-delivery-context-secret)
+            key: $(params.ibmcloud-apikey-secret-key)
+      - name: CLUSTER_NAME
+        value: $(params.cluster-name)
+      - name: CLUSTER_NAMESPACE
+        value: $(params.cluster-namespace)
+  steps:
+    - name: application-deploy
+      image: icr.io/continuous-delivery/pipeline/pipeline-base-ubi:3.3
+      workingDir: "/artifacts"
+      imagePullPolicy: Always
+      command: ["/bin/bash", "-c"]
+      args:
+        - |
+          #!/bin/bash
+
+          if [[ "${PIPELINE_DEBUG}" == "true" ]]; then
+            pwd
+            env
+            trap env EXIT
+            set -x
+          fi
+
+          REGION="--no-region"
+         
+          # force login (required by schematics cli)
+          ibmcloud login --apikey "${IBMCLOUD_API_KEY}" $REGION;
+
+          ibmcloud cs cluster config --cluster "${CLUSTER_NAME}" --admin;
+
+          # check if project exists
+          oc get project/"${CLUSTER_NAMESPACE}"
+          if [[ $? -ne 0 ]]; then
+            oc new-project "${CLUSTER_NAMESPACE}"
+          else 
+            oc project "${CLUSTER_NAMESPACE}"
+          fi 
+
+          # Copy the pull secret if not in default namespace
+          if [[ "${CLUSTER_NAMESPACE}" != "default" ]]; then
+            echo "Copying secret"
+            oc get secret all-icr-io -n default -o json | jq 'del(.metadata.namespace,.metadata.resourceVersion,.metadata.uid) | .metadata.creationTimestamp=null' | oc apply -n "${CLUSTER_NAMESPACE}" -f -
+            echo "Finished copying secret"
+          fi
+
+          echo "Applying application yaml configuration"
+          oc apply -f sample-app.yaml
+
+          exit 0;
+
+
+  workspaces:
+    - name: artifacts
+      mountPath: /artifacts
+    - name: secrets
+      mountPath: /secrets
+  volumes:
+    - name: secrets
+      secret:
+        secretName: $(params.continuous-delivery-context-secret)
+
